@@ -2,8 +2,8 @@ module go.elastic.co/apm/module/apmelasticsearch/v2
 
 require (
 	github.com/stretchr/testify v1.8.4
-	go.elastic.co/apm/module/apmhttp/v2 v2.4.8
-	go.elastic.co/apm/v2 v2.4.8
+	go.elastic.co/apm/module/apmhttp/v2 v2.6.3
+	go.elastic.co/apm/v2 v2.6.3
 )
 
 require (
@@ -26,4 +26,4 @@ replace go.elastic.co/apm/v2 => ../..
 
 replace go.elastic.co/apm/module/apmhttp/v2 => ../apmhttp
 
-go 1.19
+go 1.22

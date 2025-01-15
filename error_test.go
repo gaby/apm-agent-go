@@ -19,6 +19,7 @@ package apm_test
 
 import (
 	"context"
+	goerrors "errors"
 	"fmt"
 	"net"
 	"os"
@@ -50,6 +51,17 @@ func TestErrorID(t *testing.T) {
 	require.Len(t, errors, 1)
 	assert.NotZero(t, errorID)
 	assert.Equal(t, model.TraceID(errorID), errors[0].ID)
+}
+
+func TestErrorCauseUnwrapJoined(t *testing.T) {
+	err := goerrors.Join(errors.New("cause1"), errors.New("cause2"))
+	_, _, errors := apmtest.WithTransaction(func(ctx context.Context) {
+		apm.CaptureError(ctx, err).Send()
+	})
+	require.Len(t, errors, 1)
+	require.Len(t, errors[0].Exception.Cause, 2)
+	assert.Equal(t, "cause1", errors[0].Exception.Cause[0].Message)
+	assert.Equal(t, "cause2", errors[0].Exception.Cause[1].Message)
 }
 
 func TestErrorsStackTrace(t *testing.T) {
@@ -571,6 +583,23 @@ func TestErrorCauseUnwrap(t *testing.T) {
 	assert.Equal(t, "cause", payloads.Errors[0].Exception.Cause[0].Message)
 }
 
+func TestErrorCauseNilElementUnwrap(t *testing.T) {
+	err := errorJoin{errors.New("foo"), nil, errors.New("bar")}
+
+	tracer, recorder := transporttest.NewRecorderTracer()
+	defer tracer.Close()
+	tracer.NewError(err).Send()
+	tracer.Flush(nil)
+
+	payloads := recorder.Payloads()
+	require.Len(t, payloads.Errors, 1)
+	assert.Equal(t, "TestErrorCauseNilElementUnwrap", payloads.Errors[0].Culprit)
+
+	require.Len(t, payloads.Errors[0].Exception.Cause, 2)
+	assert.Equal(t, "foo", payloads.Errors[0].Exception.Cause[0].Message)
+	assert.Equal(t, "bar", payloads.Errors[0].Exception.Cause[1].Message)
+}
+
 func assertErrorTransactionSampled(t *testing.T, e model.Error, sampled bool) {
 	assert.Equal(t, &sampled, e.Transaction.Sampled)
 	if sampled {
@@ -677,6 +706,16 @@ func (es errorslice) Error() string {
 
 func (es errorslice) Cause() error {
 	return es[0]
+}
+
+type errorJoin []error
+
+func (es errorJoin) Error() string {
+	return "errorjoin"
+}
+
+func (es errorJoin) Unwrap() []error {
+	return es
 }
 
 type runtimeStackTracer struct {

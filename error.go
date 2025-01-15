@@ -23,7 +23,6 @@ import (
 	"net"
 	"os"
 	"reflect"
-	"syscall"
 	"time"
 
 	"go.elastic.co/apm/v2/model"
@@ -471,7 +470,11 @@ func (b *exceptionDataBuilder) init(e *exceptionData, err error) bool {
 		}
 	case interface{ Unwrap() []error }:
 		if causes := err.Unwrap(); causes != nil {
-			e.ErrorDetails.Cause = append(e.ErrorDetails.Cause, causes...)
+			for _, cause := range causes {
+				if cause != nil {
+					e.ErrorDetails.Cause = append(e.ErrorDetails.Cause, cause)
+				}
+			}
 		}
 	case interface{ Cause() error }:
 		if cause := err.Cause(); cause != nil {
@@ -595,13 +598,6 @@ func init() {
 		syscallErr := err.(*os.SyscallError)
 		details.SetAttr("syscall", syscallErr.Syscall)
 		details.Cause = append(details.Cause, syscallErr.Err)
-	}))
-	RegisterTypeErrorDetailer(reflect.TypeOf(syscall.Errno(0)), ErrorDetailerFunc(func(err error, details *ErrorDetails) {
-		errno := err.(syscall.Errno)
-		details.Code.String = errnoName(errno)
-		if details.Code.String == "" {
-			details.Code.Number = float64(errno)
-		}
 	}))
 }
 
